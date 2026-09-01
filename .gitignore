@@ -1,0 +1,6 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+data/raw_stream.json
+data/processed_features.csv
