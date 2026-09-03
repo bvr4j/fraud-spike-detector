@@ -9,24 +9,29 @@ def generate_synthetic_data():
     # Start time: 3 hours ago
     current_time = datetime.datetime.now() - datetime.timedelta(hours=3)
     
-    # Pool of normal IP addresses
+    # Pools
     normal_ips = [f"{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}" for _ in range(100)]
+    merchants = [f"M{str(i).zfill(3)}" for i in range(1, 51)]
+    bins = [f"{random.randint(400000, 499999)}" for _ in range(100)]
     
     # 1. Generate normal baseline traffic over ~3 hours
     for _ in range(1000):
         current_time += datetime.timedelta(seconds=random.randint(1, 10))
         event_type = "payment.authorized" if random.random() < 0.9 else "payment.failed"
-        ip = random.choice(normal_ips)
         
         events.append({
             "timestamp": current_time.isoformat(),
-            "ip_address": ip,
-            "event_type": event_type
+            "ip_address": random.choice(normal_ips),
+            "merchant_id": random.choice(merchants),
+            "bin": random.choice(bins),
+            "event_type": event_type,
+            "is_fraud": 0
         })
         
     # 2. INJECT A FLASH SALE (Legitimate Traffic Spike)
     # Massive surge in traffic from a specific corporate IP or proxy, but with a normal 90% success rate.
     flash_sale_ip = "192.168.100.50"
+    flash_sale_merchant = "M042"
     flash_sale_time = current_time + datetime.timedelta(minutes=5)
     
     for _ in range(300):
@@ -36,21 +41,31 @@ def generate_synthetic_data():
         events.append({
             "timestamp": flash_sale_time.isoformat(),
             "ip_address": flash_sale_ip,
-            "event_type": event_type
+            "merchant_id": flash_sale_merchant,
+            "bin": random.choice(bins),
+            "event_type": event_type,
+            "is_fraud": 0
         })
         
-    # 3. Inject a card-testing attack (Malicious Spike)
-    # Massive sudden burst of 100% payment.failed events
-    attacker_ip = "10.0.0.99"
+    # 3. Inject a card-testing attack (Malicious Spike - IP Rotation)
+    # Massive sudden burst of 100% payment.failed events using different IPs but targeting the same merchant and BIN.
+    attack_merchant = "M099"
+    attack_bin = "411111"
     attack_time = flash_sale_time + datetime.timedelta(minutes=10) 
     
-    for _ in range(500):
+    # Generate 500 unique IPs
+    attack_ips = list(set([f"{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}" for _ in range(600)]))[:500]
+    
+    for ip in attack_ips:
         attack_time += datetime.timedelta(milliseconds=random.randint(10, 100))
         
         events.append({
             "timestamp": attack_time.isoformat(),
-            "ip_address": attacker_ip,
-            "event_type": "payment.failed"
+            "ip_address": ip,
+            "merchant_id": attack_merchant,
+            "bin": attack_bin,
+            "event_type": "payment.failed",
+            "is_fraud": 1
         })
         
     # Sort events chronologically to ensure the stream is in order

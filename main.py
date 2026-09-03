@@ -1,7 +1,10 @@
 from src.data_simulator import generate_synthetic_data
 from src.feature_processor import process_features
-from src.ml_engine import detect_anomalies
-from src.auto_responder import orchestrate_defense_and_evaluate
+from fastapi.testclient import TestClient
+import json
+import numpy as np
+from api import app
+
 def main():
     print("===========================================")
     print("  Velocity-Based Fraud Spike Detector      ")
@@ -13,12 +16,58 @@ def main():
     print("\n[Step 2] Processing features...")
     process_features()
     
-    print("\n[Step 3] Detecting anomalies using Machine Learning...")
-    flagged_ips = detect_anomalies()
-    
-    print("\n[Step 4] Evaluating defensive response...")
-    orchestrate_defense_and_evaluate(flagged_ips)    
-    print("\nPipeline execution complete.")
+    print("\n[Step 3] Initializing FastAPI Microservice & Training ML Engine...")
+    # Using TestClient automatically triggers startup events (which trains the models)
+    with TestClient(app) as client:
+        print("\n[Step 4] Streaming events to /webhook and evaluating latency & accuracy...")
+        
+        # Load raw stream to simulate webhook events
+        with open("data/raw_stream.json", "r") as f:
+            events = json.load(f)
+            
+        latencies = []
+        true_positives = 0
+        false_positives = 0
+        cost_per_false_positive_inr = 500
+        
+        print(f"Streaming {len(events)} events to API...")
+        
+        for i, event in enumerate(events):
+            # We simulate the webhook by sending the JSON payload
+            # Pop 'is_fraud' before sending to strictly avoid Data Leakage through API interface
+            is_fraud = event.pop('is_fraud', 0)
+            
+            response = client.post("/webhook", json=event)
+            
+            if response.status_code == 200:
+                data = response.json()
+                action = data.get("action")
+                latency_ms = data.get("latency_ms", 0)
+                
+                latencies.append(latency_ms)
+                
+                # Evaluate Accuracy
+                if action == "blocked":
+                    if is_fraud == 1:
+                        true_positives += 1
+                    else:
+                        false_positives += 1
+                        
+            if (i+1) % 500 == 0:
+                print(f"Processed {i+1}/{len(events)} events...")
+                
+        print("\n--- Pipeline Execution Complete ---")
+        
+        print("\n--- Defense Evaluation Metrics ---")
+        print(f"True Positives (Attacks Blocked) : {true_positives}")
+        print(f"False Positives (Users Blocked)  : {false_positives}")
+        print(f"Financial Impact (False Pos.)    : {false_positives * cost_per_false_positive_inr} INR")
+        
+        if latencies:
+            p95_latency = np.percentile(latencies, 95)
+            print(f"P95 End-to-End Latency           : {p95_latency:.2f} ms")
+        else:
+            print("No latencies recorded.")
 
 if __name__ == "__main__":
     main()

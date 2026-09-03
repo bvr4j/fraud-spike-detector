@@ -10,18 +10,33 @@ def process_features():
     # Create a boolean column for failed events
     df['is_failed'] = (df['event_type'] == 'payment.failed').astype(int)
     
-    # Sort by timestamp and set as index for rolling window calculation
-    df = df.sort_values('timestamp').set_index('timestamp')
+    # Sort by timestamp
+    df = df.sort_values('timestamp')
     
-    # Group by IP address and calculate 5-minute rolling window sum of failed events
-    feature_df = df.groupby('ip_address')['is_failed'].rolling('5min').sum().reset_index()
+    # Create an indexed version for rolling window calculation
+    df_indexed = df.set_index('timestamp')
     
-    # Rename the column to represent our failure velocity metric
-    feature_df.rename(columns={'is_failed': 'failure_velocity'}, inplace=True)
+    # Calculate 5-minute rolling window sum of failed events for ip_address
+    ip_velocity = df_indexed.groupby('ip_address')['is_failed'].rolling('5min').sum().reset_index()
+    ip_velocity.rename(columns={'is_failed': 'ip_velocity'}, inplace=True)
+    
+    # Calculate 5-minute rolling window sum of failed events for merchant_id
+    merchant_velocity = df_indexed.groupby('merchant_id')['is_failed'].rolling('5min').sum().reset_index()
+    merchant_velocity.rename(columns={'is_failed': 'merchant_velocity'}, inplace=True)
+    
+    # Calculate 5-minute rolling window sum of failed events for bin
+    bin_velocity = df_indexed.groupby('bin')['is_failed'].rolling('5min').sum().reset_index()
+    bin_velocity.rename(columns={'is_failed': 'bin_velocity'}, inplace=True)
+    
+    # Merge the velocity features back into the original dataframe
+    # We use a sequential merge on the timestamp and respective identifier
+    df = pd.merge(df, ip_velocity, on=['timestamp', 'ip_address'], how='left')
+    df = pd.merge(df, merchant_velocity, on=['timestamp', 'merchant_id'], how='left')
+    df = pd.merge(df, bin_velocity, on=['timestamp', 'bin'], how='left')
     
     # Save the processed features
     output_path = "data/processed_features.csv"
-    feature_df.to_csv(output_path, index=False)
+    df.to_csv(output_path, index=False)
     print(f"Processed features saved to {output_path}")
 
 if __name__ == "__main__":
