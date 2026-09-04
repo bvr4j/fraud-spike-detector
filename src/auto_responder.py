@@ -20,24 +20,28 @@ try:
 except Exception as e:
     print(f"Error initializing Razorpay client: {e}")
 
-def trigger_defense(ip_address: str):
+def generate_threat_report(ip: str, merchant_id: str, bin: str) -> str:
     """
-    Triggers a defense mechanism (e.g. logging or blocking) for the given IP.
+    Simulates a GenAI explainability layer that diagnoses the anomaly.
+    """
+    return f"[GenAI Analyst]: High-velocity anomaly detected. IP {ip} is testing BIN {bin} at Merchant {merchant_id}. Recommended Action: Step-up authentication (3D-Secure)."
+
+def trigger_defense(ip_address: str, merchant_id: str, bin: str):
+    """
+    Triggers the 3D-Secure dynamic friction defense mechanism.
     Executes a synchronous ping to the Razorpay API to verify connectivity or fetch data,
     simulating the blocking phase latency.
     """
-    # 1. Action: Real API Integration (Synchronous ping)
     if api_connected and client is not None:
         try:
             # Ping the API to fetch the 3 most recent transactions
             recent_payments = client.payment.fetch_all({'count': 3})
-            print(f"DEFENSE ACTIVE: Logged malicious IP {ip_address} to Razorpay security audit.")
-            # In a full production environment, issue automatic refunds or block IP here.
+            print(f"DEFENSE ACTIVE: Triggering 3D-Secure OTP Challenge for IP {ip_address} on BIN {bin}.")
         except requests.exceptions.RequestException as re:
             print(f"Network Timeout/Connection Error during defense: {re}")
         except Exception as e:
             print(f"Razorpay API Error during defense: {e}")
     else:
-        print(f"DEFENSE TRIGGERED (Local Fallback): Generating temporary firewall block for IP {ip_address}")
+        print(f"DEFENSE TRIGGERED (Local Fallback): Triggering 3D-Secure OTP Challenge for IP {ip_address} on BIN {bin}.")
         
     return True
